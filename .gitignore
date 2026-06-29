@@ -1,0 +1,30 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+.next
+dist
+.turbo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.db-journal
+
+# Test outputs
+coverage
+playwright-report
+test-results
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
