@@ -1,0 +1,131 @@
+---
+id: factory-method
+title: Factory Method
+category: creational
+difficulty: beginner
+tags: [création, interface, sous-classe, polymorphisme]
+realWorld: [React createElement, express Router, winston createLogger, pg Pool]
+related: [abstract-factory, singleton, builder]
+excerpt: Définit une interface pour créer un objet, mais laisse les sous-classes décider de la classe à instancier.
+---
+
+## Intention
+
+Le Factory Method définit une **interface pour créer un objet**, mais délègue aux sous-classes la décision de la classe concrète à instancier. Il permet d'éliminer le couplage entre le créateur et les produits concrets.
+
+## Problème résolu
+
+Imaginez un framework de logistique. Il gère des camions — mais un jour, on veut aussi gérer des bateaux. Sans Factory Method, le code est truffé de `if (type === 'truck') ... else if (type === 'ship') ...`. Chaque ajout d'un nouveau moyen de transport nécessite de modifier le code existant, violant le principe Open/Closed.
+
+<UMLDiagram alt="Diagramme UML — Factory Method" description="Creator déclare la méthode createTransport(). ConcreteCreators (TruckLogistics, ShipLogistics) l'implémentent et retournent leurs produits concrets (Truck, Ship)." />
+
+## Implémentation TypeScript
+
+<CodeExample filename="factory-method.ts" language="typescript" code={`
+// Produit — interface commune
+interface Transport {
+  deliver(from: string, to: string): string
+}
+
+// Produits concrets
+class Truck implements Transport {
+  deliver(from: string, to: string): string {
+    return \`[CAMION] Livraison routière de \${from} à \${to}\`
+  }
+}
+
+class Ship implements Transport {
+  deliver(from: string, to: string): string {
+    return \`[BATEAU] Livraison maritime de \${from} à \${to}\`
+  }
+}
+
+// Créateur — déclare la factory method
+abstract class Logistics {
+  // La factory method — à implémenter dans les sous-classes
+  abstract createTransport(): Transport
+
+  // Logique métier commune — utilise le produit sans connaître sa classe
+  planDelivery(from: string, to: string): string {
+    const transport = this.createTransport()
+    return transport.deliver(from, to)
+  }
+}
+
+// Créateurs concrets
+class TruckLogistics extends Logistics {
+  createTransport(): Transport {
+    return new Truck()
+  }
+}
+
+class ShipLogistics extends Logistics {
+  createTransport(): Transport {
+    return new Ship()
+  }
+}
+
+// Usage
+function createLogistics(type: 'truck' | 'ship'): Logistics {
+  if (type === 'truck') return new TruckLogistics()
+  return new ShipLogistics()
+}
+
+const logistics = createLogistics('ship')
+console.log(logistics.planDelivery('Paris', 'New York'))
+// [BATEAU] Livraison maritime de Paris à New York
+`} />
+
+## Variante fonctionnelle
+
+En TypeScript moderne, on peut exprimer le Factory Method avec de simples fonctions :
+
+<CodeExample filename="factory-method-functional.ts" language="typescript" code={`
+type NotifierType = 'email' | 'sms' | 'push'
+
+interface Notifier {
+  send(message: string, recipient: string): void
+}
+
+const notifiers: Record<NotifierType, () => Notifier> = {
+  email: () => ({
+    send: (msg, to) => console.log(\`Email à \${to}: \${msg}\`)
+  }),
+  sms: () => ({
+    send: (msg, to) => console.log(\`SMS à \${to}: \${msg}\`)
+  }),
+  push: () => ({
+    send: (msg, to) => console.log(\`Push à \${to}: \${msg}\`)
+  }),
+}
+
+function createNotifier(type: NotifierType): Notifier {
+  return notifiers[type]()
+}
+
+const notifier = createNotifier('email')
+notifier.send('Votre commande est expédiée', 'user@example.com')
+`} />
+
+## Exemples dans le monde réel
+
+- **`React.createElement`** — crée des éléments React sans connaître leur implémentation DOM réelle
+- **`express.Router()`** — fabrique des routeurs avec la même interface quelque soit la configuration
+- **`winston.createLogger()`** — crée des loggers avec des transports configurables
+- **`pg.Pool`** — crée des connexions à la BDD selon la configuration
+
+## Quand l'utiliser
+
+- Le code qui crée des objets ne doit pas savoir quelle classe concrète instancier
+- Les sous-classes doivent pouvoir changer le type d'objet créé
+- Vous voulez fournir un hook d'extension aux utilisateurs de votre bibliothèque
+
+## Différence avec les autres factories
+
+<Callout variant="info" title="Factory Method vs Simple Factory">
+Une **Simple Factory** est une fonction ou méthode statique qui crée des objets selon un paramètre. Ce n'est pas un vrai pattern GoF — c'est juste du refactoring. Le **Factory Method** implique une hiérarchie de classes avec héritage.
+</Callout>
+
+<Callout variant="info" title="Factory Method vs Abstract Factory">
+Le **Factory Method** crée **un seul type de produit** via l'héritage. L'**Abstract Factory** crée des **familles de produits liés** via la composition. Voir la fiche Abstract Factory.
+</Callout>

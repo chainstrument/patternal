@@ -1,0 +1,191 @@
+---
+id: builder
+title: Builder
+category: creational
+difficulty: intermediate
+tags: [création, construction-étape-par-étape, objet-complexe, fluent-api]
+realWorld: [Query Builder (Knex/Prisma), URLSearchParams, Zod schema, Chai assertions]
+related: [factory-method, abstract-factory, prototype]
+excerpt: Construit des objets complexes étape par étape, en séparant la construction de la représentation finale.
+---
+
+## Intention
+
+Le Builder permet de **construire des objets complexes étape par étape**. Il sépare la construction d'un objet complexe de sa représentation finale, de sorte que le même processus de construction peut produire différentes représentations.
+
+## Problème résolu
+
+Un constructeur avec 10 paramètres optionnels est un cauchemar : `new Pizza(30, 'fine', true, false, true, null, ['mozza', 'tomate'], 'extra', false, true)`. Qui se souvient de l'ordre ? Le Builder résout ça avec une API fluente et lisible, et ne crée l'objet final qu'une fois la configuration terminée.
+
+<UMLDiagram alt="Diagramme UML — Builder" description="Director orchestre le Builder. ConcreteBuilder implémente les étapes de construction et retourne le Product final via getResult()." />
+
+## Implémentation TypeScript — API fluente
+
+<CodeExample filename="builder.ts" language="typescript" code={`
+// Produit final — objet complexe
+interface QueryConfig {
+  table: string
+  conditions: string[]
+  columns: string[]
+  limit: number | null
+  offset: number | null
+  orderBy: { column: string; direction: 'ASC' | 'DESC' } | null
+}
+
+// Builder avec API fluente (méthodes chainables)
+class QueryBuilder {
+  private config: QueryConfig = {
+    table: '',
+    conditions: [],
+    columns: ['*'],
+    limit: null,
+    offset: null,
+    orderBy: null,
+  }
+
+  from(table: string): this {
+    this.config.table = table
+    return this
+  }
+
+  select(...columns: string[]): this {
+    this.config.columns = columns
+    return this
+  }
+
+  where(condition: string): this {
+    this.config.conditions.push(condition)
+    return this
+  }
+
+  limitTo(n: number): this {
+    this.config.limit = n
+    return this
+  }
+
+  skipFirst(n: number): this {
+    this.config.offset = n
+    return this
+  }
+
+  orderBy(column: string, direction: 'ASC' | 'DESC' = 'ASC'): this {
+    this.config.orderBy = { column, direction }
+    return this
+  }
+
+  build(): string {
+    if (!this.config.table) throw new Error('Table requise')
+
+    const parts: string[] = [
+      \`SELECT \${this.config.columns.join(', ')}\`,
+      \`FROM \${this.config.table}\`,
+    ]
+
+    if (this.config.conditions.length > 0) {
+      parts.push(\`WHERE \${this.config.conditions.join(' AND ')}\`)
+    }
+    if (this.config.orderBy) {
+      parts.push(\`ORDER BY \${this.config.orderBy.column} \${this.config.orderBy.direction}\`)
+    }
+    if (this.config.limit !== null) parts.push(\`LIMIT \${this.config.limit}\`)
+    if (this.config.offset !== null) parts.push(\`OFFSET \${this.config.offset}\`)
+
+    return parts.join(' ')
+  }
+}
+
+// Usage — lisible et sans erreurs d'ordre
+const query = new QueryBuilder()
+  .from('users')
+  .select('id', 'name', 'email')
+  .where('active = true')
+  .where('age > 18')
+  .orderBy('name')
+  .limitTo(20)
+  .skipFirst(40)
+  .build()
+
+console.log(query)
+// SELECT id, name, email FROM users WHERE active = true AND age > 18 ORDER BY name ASC LIMIT 20 OFFSET 40
+`} />
+
+## Variante avec Director
+
+Le **Director** encapsule des recettes de construction réutilisables :
+
+<CodeExample filename="builder-director.ts" language="typescript" code={`
+interface EmailConfig {
+  to: string
+  subject: string
+  body: string
+  cc?: string[]
+  bcc?: string[]
+  replyTo?: string
+  priority: 'low' | 'normal' | 'high'
+  attachments: string[]
+}
+
+class EmailBuilder {
+  private email: Partial<EmailConfig> = { priority: 'normal', attachments: [] }
+
+  to(address: string): this { this.email.to = address; return this }
+  subject(s: string): this { this.email.subject = s; return this }
+  body(b: string): this { this.email.body = b; return this }
+  cc(...addresses: string[]): this { this.email.cc = addresses; return this }
+  priority(p: EmailConfig['priority']): this { this.email.priority = p; return this }
+  attach(file: string): this { this.email.attachments!.push(file); return this }
+
+  build(): EmailConfig {
+    if (!this.email.to || !this.email.subject || !this.email.body) {
+      throw new Error('to, subject et body sont requis')
+    }
+    return this.email as EmailConfig
+  }
+}
+
+// Director — recettes de construction prêtes à l'emploi
+class EmailDirector {
+  static urgentAlert(builder: EmailBuilder, to: string, issue: string): EmailConfig {
+    return builder
+      .to(to)
+      .subject(\`[URGENT] \${issue}\`)
+      .body(\`Une alerte critique requiert votre attention immédiate : \${issue}\`)
+      .priority('high')
+      .cc('admin@company.com')
+      .build()
+  }
+
+  static newsletter(builder: EmailBuilder, to: string): EmailConfig {
+    return builder
+      .to(to)
+      .subject('Notre newsletter du mois')
+      .body('Voici les dernières nouvelles...')
+      .priority('low')
+      .build()
+  }
+}
+
+const alert = EmailDirector.urgentAlert(new EmailBuilder(), 'cto@company.com', 'Prod down')
+console.log(alert.priority) // 'high'
+`} />
+
+## Exemples dans le monde réel
+
+- **Knex / Prisma** — `db.select('*').from('users').where('id', 1).limit(10)` est un Builder pur
+- **Zod** — `z.object({ name: z.string().min(3).max(50) })` construit un schema étape par étape
+- **URLSearchParams** — construction progressive de query strings
+- **Chai** — `expect(value).to.be.a('string').and.have.length.above(5)`
+
+## Quand l'utiliser
+
+- L'objet à construire a de **nombreux paramètres optionnels** ou configurations
+- La construction se fait en **plusieurs étapes logiques** qui doivent rester flexibles
+- On veut une **API lisible** et éviter les constructeurs à nombreux arguments
+
+<Callout variant="tip" title="L'immutabilité avec le Builder">
+Retournez `this` depuis chaque méthode pour l'API fluente, mais retournez un **nouvel objet immuable** depuis `build()`. Ainsi l'objet construit ne peut pas être modifié après coup.
+</Callout>
+
+<Callout variant="warning" title="Builder vs Options object">
+Pour des objets simples avec quelques options, un simple objet de configuration `{ table, limit, offset }` est préférable au Builder. Réservez le Builder aux constructions véritablement multi-étapes ou fluentes.
+</Callout>
