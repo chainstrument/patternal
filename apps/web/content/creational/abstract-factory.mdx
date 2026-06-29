@@ -15,14 +15,14 @@ L'Abstract Factory fournit une **interface pour créer des familles d'objets li�
 
 ## Problème résolu
 
-Imaginez une application UI qui doit fonctionner sur Windows et macOS. Chaque plateforme a ses propres composants (`Button`, `Checkbox`, `Dialog`) — et ils doivent tous être cohérents : un bouton macOS avec une checkbox Windows serait incohérent. L'Abstract Factory garantit que tous les composants créés appartiennent à la même famille.
+Imaginez une application UI qui doit fonctionner sur Windows et macOS. Chaque plateforme a ses propres composants (`Button`, `Checkbox`) — et ils doivent tous être cohérents : un bouton macOS avec une checkbox Windows serait incohérent. L'Abstract Factory garantit que tous les composants créés appartiennent à la même famille.
 
 <UMLDiagram alt="Diagramme UML — Abstract Factory" description="AbstractUIFactory déclare createButton() et createCheckbox(). WindowsFactory et MacFactory les implémentent et retournent leurs composants respectifs." />
 
 ## Implémentation TypeScript
 
-<CodeExample filename="abstract-factory.ts" language="typescript" code={`
-// Produits abstraits
+```typescript
+// abstract-factory.ts
 interface Button {
   render(): string
   onClick(handler: () => void): void
@@ -33,34 +33,30 @@ interface Checkbox {
   toggle(): boolean
 }
 
-// Produits concrets — famille Windows
+// Famille Windows
 class WindowsButton implements Button {
   private handlers: Array<() => void> = []
-
-  render(): string { return '<button class="win-btn">Click</button>' }
-  onClick(handler: () => void): void { this.handlers.push(handler) }
+  render() { return '<button class="win-btn">Click</button>' }
+  onClick(handler: () => void) { this.handlers.push(handler) }
 }
 
 class WindowsCheckbox implements Checkbox {
   private checked = false
-
-  render(): string { return \`<input type="checkbox" \${this.checked ? 'checked' : ''} />\` }
-  toggle(): boolean { return (this.checked = !this.checked) }
+  render() { return `<input type="checkbox" ${this.checked ? 'checked' : ''} />` }
+  toggle() { return (this.checked = !this.checked) }
 }
 
-// Produits concrets — famille macOS
+// Famille macOS
 class MacButton implements Button {
   private handlers: Array<() => void> = []
-
-  render(): string { return '<button class="mac-btn">Click</button>' }
-  onClick(handler: () => void): void { this.handlers.push(handler) }
+  render() { return '<button class="mac-btn">Click</button>' }
+  onClick(handler: () => void) { this.handlers.push(handler) }
 }
 
 class MacCheckbox implements Checkbox {
   private checked = false
-
-  render(): string { return \`<div class="mac-checkbox \${this.checked ? 'active' : ''}"></div>\` }
-  toggle(): boolean { return (this.checked = !this.checked) }
+  render() { return `<div class="mac-checkbox ${this.checked ? 'active' : ''}"></div>` }
+  toggle() { return (this.checked = !this.checked) }
 }
 
 // Fabrique abstraite
@@ -69,7 +65,6 @@ interface UIFactory {
   createCheckbox(): Checkbox
 }
 
-// Fabriques concrètes
 class WindowsFactory implements UIFactory {
   createButton(): Button { return new WindowsButton() }
   createCheckbox(): Checkbox { return new WindowsCheckbox() }
@@ -86,30 +81,27 @@ class Application {
   private checkbox: Checkbox
 
   constructor(factory: UIFactory) {
-    // Le client ne connaît pas les classes concrètes
     this.button = factory.createButton()
     this.checkbox = factory.createCheckbox()
   }
 
   render(): string {
-    return \`\${this.button.render()} \${this.checkbox.render()}\`
+    return `${this.button.render()} ${this.checkbox.render()}`
   }
 }
 
-// Bootstrap — seul endroit où on choisit la famille concrète
 function getFactory(): UIFactory {
-  const os = process.platform
-  return os === 'darwin' ? new MacFactory() : new WindowsFactory()
+  return process.platform === 'darwin' ? new MacFactory() : new WindowsFactory()
 }
 
 const app = new Application(getFactory())
 console.log(app.render())
-`} />
+```
 
 ## Exemple concret : adapters de base de données
 
-<CodeExample filename="db-factory.ts" language="typescript" code={`
-// Famille "connexion BDD"
+```typescript
+// db-factory.ts
 interface Connection {
   query(sql: string): Promise<unknown[]>
   close(): Promise<void>
@@ -125,45 +117,28 @@ interface DatabaseFactory {
   createMigration(connection: Connection): Migration
 }
 
-// Chaque famille garantit la cohérence entre connexion et migration
 class PostgresFactory implements DatabaseFactory {
   createConnection(url: string): Connection {
-    return { /* implémentation Postgres */ } as Connection
+    return { query: async () => [], close: async () => {} }
   }
   createMigration(connection: Connection): Migration {
-    return { /* implémentation Postgres */ } as Migration
+    return { up: async () => {}, down: async () => {} }
   }
 }
-
-class SQLiteFactory implements DatabaseFactory {
-  createConnection(url: string): Connection {
-    return { /* implémentation SQLite */ } as Connection
-  }
-  createMigration(connection: Connection): Migration {
-    return { /* implémentation SQLite */ } as Migration
-  }
-}
-`} />
+```
 
 ## Exemples dans le monde réel
 
-- **UI Kits multiplateformes** — Material UI, Ant Design utilisent ce principe pour adapter les composants selon le thème
-- **Prisma / TypeORM** — les adapters de BDD créent des familles cohérentes (requête + transaction + migration)
+- **UI Kits multiplateformes** — Material UI adapte les composants selon le thème
+- **Prisma / TypeORM** — les adapters créent des familles cohérentes (requête + transaction + migration)
 - **`@testing-library/react` vs `@testing-library/react-native`** — même interface, familles différentes
-- **Frameworks d'internationalisation** — `Intl.DateTimeFormat`, `Intl.NumberFormat` forment une famille cohérente par locale
 
 ## Quand l'utiliser
 
 - Le code doit fonctionner avec **plusieurs familles de produits liés**
-- Les produits d'une famille **doivent être utilisés ensemble** (garantie de cohérence)
-- Vous voulez pouvoir **substituer une famille entière** sans changer le client
-
-## Pièges courants
+- Les produits d'une famille **doivent être utilisés ensemble**
+- Vous voulez **substituer une famille entière** sans changer le client
 
 <Callout variant="warning" title="Rigidité de l'interface">
 Ajouter un nouveau type de produit (ex: `createDialog()`) oblige à modifier **toutes** les fabriques concrètes. Si vos familles évoluent souvent, envisagez une approche par composition plus flexible.
-</Callout>
-
-<Callout variant="info" title="Ne pas confondre avec Factory Method">
-L'Abstract Factory utilise la **composition** (on passe la factory en paramètre) là où le Factory Method utilise l'**héritage** (on sous-classe le créateur). L'Abstract Factory est souvent implémentée avec plusieurs Factory Methods.
 </Callout>

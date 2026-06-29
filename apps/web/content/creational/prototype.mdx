@@ -11,41 +11,39 @@ excerpt: Crée de nouveaux objets en copiant un objet existant (prototype), sans
 
 ## Intention
 
-Le Prototype permet de **créer de nouveaux objets en clonant un objet existant** (le prototype), plutôt qu'en instanciant une classe. Utile quand la création ex-nihilo est coûteuse ou complexe, et que la copie est moins chère.
-
-## Problème résolu
-
-Imaginez un éditeur graphique : l'utilisateur dessine une forme complexe (avec des dizaines de propriétés de style, des effets, une hiérarchie d'éléments enfants). Dupliquer cette forme via `new Shape(...)` imposerait de copier manuellement chaque propriété. Le Prototype délègue la copie à l'objet lui-même, qui sait exactement ce qu'il doit cloner.
+Le Prototype permet de **créer de nouveaux objets en clonant un objet existant**, plutôt qu'en instanciant une classe. Utile quand la création ex-nihilo est coûteuse ou complexe.
 
 <UMLDiagram alt="Diagramme UML — Prototype" description="L'interface Prototype déclare clone(). ConcretePrototype l'implémente en se copiant lui-même. Le Client appelle clone() sans connaître la classe concrète." />
 
 ## Shallow copy vs Deep copy
 
 <Callout variant="warning" title="Le piège de la copie superficielle">
-Une **shallow copy** (copie superficielle) ne duplique que les références aux objets imbriqués. Modifier l'original modifie aussi le clone. Une **deep copy** (copie profonde) duplique récursivement toute la structure.
+Une **shallow copy** ne duplique que les références aux objets imbriqués. Modifier l'original modifie aussi le clone. Une **deep copy** duplique récursivement toute la structure.
 </Callout>
 
-<CodeExample filename="shallow-vs-deep.ts" language="typescript" code={`
+```typescript
+// shallow-vs-deep.ts
 const original = {
   name: 'Alice',
-  scores: [90, 85, 92],      // tableau — référence partagée en shallow copy
-  address: { city: 'Paris' }, // objet imbriqué — référence partagée
+  scores: [90, 85, 92],
+  address: { city: 'Paris' },
 }
 
-// Shallow copy — Object.assign ou spread
+// Shallow copy — spread
 const shallow = { ...original }
 shallow.scores.push(100)
-console.log(original.scores) // [90, 85, 92, 100] — !! original modifié
+console.log(original.scores) // [90, 85, 92, 100] — original modifié !
 
 // Deep copy — structuredClone (Node 17+)
 const deep = structuredClone(original)
 deep.scores.push(200)
 console.log(original.scores) // [90, 85, 92, 100] — original intact
-`} />
+```
 
 ## Implémentation TypeScript — interface clone()
 
-<CodeExample filename="prototype.ts" language="typescript" code={`
+```typescript
+// prototype.ts
 interface Cloneable<T> {
   clone(): T
 }
@@ -55,11 +53,10 @@ class ShapeStyle {
     public fillColor: string,
     public strokeColor: string,
     public strokeWidth: number,
-    public opacity: number,
   ) {}
 
   clone(): ShapeStyle {
-    return new ShapeStyle(this.fillColor, this.strokeColor, this.strokeWidth, this.opacity)
+    return new ShapeStyle(this.fillColor, this.strokeColor, this.strokeWidth)
   }
 }
 
@@ -77,10 +74,8 @@ class Shape implements Cloneable<Shape> {
     this.children.push(shape)
   }
 
-  // Deep clone — l'objet se charge lui-même de sa copie
   clone(): Shape {
     const cloned = new Shape(this.type, this.x, this.y, this.style.clone())
-    // Cloner récursivement les enfants
     cloned.children = this.children.map((child) => child.clone())
     return cloned
   }
@@ -92,25 +87,24 @@ class Shape implements Cloneable<Shape> {
   }
 }
 
-// Usage — créer une forme complexe une fois, cloner ensuite
-const baseStyle = new ShapeStyle('#fff', '#000', 2, 1)
+// Usage
+const baseStyle = new ShapeStyle('#fff', '#000', 2)
 const original = new Shape('rect', 0, 0, baseStyle)
-original.addChild(new Shape('circle', 10, 10, new ShapeStyle('#f00', '#900', 1, 0.8)))
+original.addChild(new Shape('circle', 10, 10, new ShapeStyle('#f00', '#900', 1)))
 
 const copy = original.clone()
-copy.translate(100, 0)   // déplace la copie
+copy.translate(100, 0)
 copy.style.fillColor = '#eee'
 
-console.log(original.x)             // 0     — original intact
-console.log(copy.x)                 // 100   — copie déplacée
+console.log(original.x)              // 0     — original intact
+console.log(copy.x)                  // 100
 console.log(original.style.fillColor) // '#fff' — style original intact
-`} />
+```
 
 ## Registre de prototypes
 
-Un **registre** stocke des prototypes nommés et en fournit des clones à la demande :
-
-<CodeExample filename="prototype-registry.ts" language="typescript" code={`
+```typescript
+// prototype-registry.ts
 class ConfigTemplate {
   constructor(
     public name: string,
@@ -136,43 +130,36 @@ class ConfigRegistry {
 
   get(key: string): ConfigTemplate {
     const template = this.registry.get(key)
-    if (!template) throw new Error(\`Template inconnu : \${key}\`)
-    return template.clone() // toujours une copie fraîche
+    if (!template) throw new Error(`Template inconnu : ${key}`)
+    return template.clone()
   }
 }
 
-// Setup des templates
 const registry = new ConfigRegistry()
-
 registry.register('production', new ConfigTemplate('prod', {
-  logLevel: 'error', cacheTTL: 3600, maxConnections: 100,
+  logLevel: 'error', cacheTTL: 3600,
 }, ['monitoring', 'analytics']))
 
-registry.register('development', new ConfigTemplate('dev', {
-  logLevel: 'debug', cacheTTL: 0, maxConnections: 5,
-}, ['hot-reload', 'debug-toolbar']))
-
-// Chaque appel retourne une copie indépendante
 const myConfig = registry.get('production')
-myConfig.settings['logLevel'] = 'warn' // modifie seulement cette copie
+myConfig.settings['logLevel'] = 'warn'
 
 const anotherConfig = registry.get('production')
 console.log(anotherConfig.settings['logLevel']) // 'error' — template intact
-`} />
+```
 
 ## Exemples dans le monde réel
 
 - **`Object.create(proto)`** — mécanisme de prototypage natif de JavaScript
-- **`structuredClone()`** — deep clone natif des valeurs sérialisables (Node 17+, navigateurs modernes)
-- **Redux** — le state est traité comme un prototype : on ne le mute jamais, on en produit une nouvelle version
+- **`structuredClone()`** — deep clone natif (Node 17+)
+- **Redux** — le state est traité comme un prototype : on le clone, on ne le mute jamais
 - **Éditeurs canvas** (Figma, Excalidraw) — la duplication d'éléments est un clone du prototype
 
 ## Quand l'utiliser
 
-- La création d'un objet est **coûteuse** (requête BDD, calculs lourds) et la copie est moins chère
+- La création d'un objet est **coûteuse** et la copie est moins chère
 - Vous avez besoin de **nombreuses variantes** d'un objet de base
 - Vous voulez créer des objets **sans coupler** le code à leurs classes concrètes
 
 <Callout variant="tip" title="structuredClone en pratique">
-En TypeScript moderne, `structuredClone()` remplace la plupart des besoins en deep copy sans dépendances externes. Limitez sa portée : il ne supporte pas les fonctions, les classes avec méthodes, ni les références circulaires complexes.
+`structuredClone()` remplace la plupart des besoins en deep copy sans dépendances externes. Limite : ne supporte pas les fonctions, les classes avec méthodes, ni les références circulaires.
 </Callout>

@@ -15,14 +15,14 @@ Le Builder permet de **construire des objets complexes étape par étape**. Il s
 
 ## Problème résolu
 
-Un constructeur avec 10 paramètres optionnels est un cauchemar : `new Pizza(30, 'fine', true, false, true, null, ['mozza', 'tomate'], 'extra', false, true)`. Qui se souvient de l'ordre ? Le Builder résout ça avec une API fluente et lisible, et ne crée l'objet final qu'une fois la configuration terminée.
+Un constructeur avec 10 paramètres optionnels est un cauchemar : `new Pizza(30, 'fine', true, false, ...)`. Le Builder résout ça avec une API fluente et lisible, et ne crée l'objet final qu'une fois la configuration terminée.
 
 <UMLDiagram alt="Diagramme UML — Builder" description="Director orchestre le Builder. ConcreteBuilder implémente les étapes de construction et retourne le Product final via getResult()." />
 
 ## Implémentation TypeScript — API fluente
 
-<CodeExample filename="builder.ts" language="typescript" code={`
-// Produit final — objet complexe
+```typescript
+// builder.ts
 interface QueryConfig {
   table: string
   conditions: string[]
@@ -32,7 +32,6 @@ interface QueryConfig {
   orderBy: { column: string; direction: 'ASC' | 'DESC' } | null
 }
 
-// Builder avec API fluente (méthodes chainables)
 class QueryBuilder {
   private config: QueryConfig = {
     table: '',
@@ -75,21 +74,16 @@ class QueryBuilder {
 
   build(): string {
     if (!this.config.table) throw new Error('Table requise')
-
-    const parts: string[] = [
-      \`SELECT \${this.config.columns.join(', ')}\`,
-      \`FROM \${this.config.table}\`,
+    const parts = [
+      `SELECT ${this.config.columns.join(', ')}`,
+      `FROM ${this.config.table}`,
     ]
-
-    if (this.config.conditions.length > 0) {
-      parts.push(\`WHERE \${this.config.conditions.join(' AND ')}\`)
-    }
-    if (this.config.orderBy) {
-      parts.push(\`ORDER BY \${this.config.orderBy.column} \${this.config.orderBy.direction}\`)
-    }
-    if (this.config.limit !== null) parts.push(\`LIMIT \${this.config.limit}\`)
-    if (this.config.offset !== null) parts.push(\`OFFSET \${this.config.offset}\`)
-
+    if (this.config.conditions.length > 0)
+      parts.push(`WHERE ${this.config.conditions.join(' AND ')}`)
+    if (this.config.orderBy)
+      parts.push(`ORDER BY ${this.config.orderBy.column} ${this.config.orderBy.direction}`)
+    if (this.config.limit !== null) parts.push(`LIMIT ${this.config.limit}`)
+    if (this.config.offset !== null) parts.push(`OFFSET ${this.config.offset}`)
     return parts.join(' ')
   }
 }
@@ -107,20 +101,17 @@ const query = new QueryBuilder()
 
 console.log(query)
 // SELECT id, name, email FROM users WHERE active = true AND age > 18 ORDER BY name ASC LIMIT 20 OFFSET 40
-`} />
+```
 
 ## Variante avec Director
 
-Le **Director** encapsule des recettes de construction réutilisables :
-
-<CodeExample filename="builder-director.ts" language="typescript" code={`
+```typescript
+// builder-director.ts
 interface EmailConfig {
   to: string
   subject: string
   body: string
   cc?: string[]
-  bcc?: string[]
-  replyTo?: string
   priority: 'low' | 'normal' | 'high'
   attachments: string[]
 }
@@ -143,31 +134,21 @@ class EmailBuilder {
   }
 }
 
-// Director — recettes de construction prêtes à l'emploi
 class EmailDirector {
   static urgentAlert(builder: EmailBuilder, to: string, issue: string): EmailConfig {
     return builder
       .to(to)
-      .subject(\`[URGENT] \${issue}\`)
-      .body(\`Une alerte critique requiert votre attention immédiate : \${issue}\`)
+      .subject(`[URGENT] ${issue}`)
+      .body(`Alerte critique : ${issue}`)
       .priority('high')
       .cc('admin@company.com')
-      .build()
-  }
-
-  static newsletter(builder: EmailBuilder, to: string): EmailConfig {
-    return builder
-      .to(to)
-      .subject('Notre newsletter du mois')
-      .body('Voici les dernières nouvelles...')
-      .priority('low')
       .build()
   }
 }
 
 const alert = EmailDirector.urgentAlert(new EmailBuilder(), 'cto@company.com', 'Prod down')
 console.log(alert.priority) // 'high'
-`} />
+```
 
 ## Exemples dans le monde réel
 
@@ -178,14 +159,10 @@ console.log(alert.priority) // 'high'
 
 ## Quand l'utiliser
 
-- L'objet à construire a de **nombreux paramètres optionnels** ou configurations
-- La construction se fait en **plusieurs étapes logiques** qui doivent rester flexibles
+- L'objet à construire a de **nombreux paramètres optionnels**
+- La construction se fait en **plusieurs étapes logiques**
 - On veut une **API lisible** et éviter les constructeurs à nombreux arguments
 
 <Callout variant="tip" title="L'immutabilité avec le Builder">
-Retournez `this` depuis chaque méthode pour l'API fluente, mais retournez un **nouvel objet immuable** depuis `build()`. Ainsi l'objet construit ne peut pas être modifié après coup.
-</Callout>
-
-<Callout variant="warning" title="Builder vs Options object">
-Pour des objets simples avec quelques options, un simple objet de configuration `{ table, limit, offset }` est préférable au Builder. Réservez le Builder aux constructions véritablement multi-étapes ou fluentes.
+Retournez `this` depuis chaque méthode pour l'API fluente, mais retournez un **nouvel objet immuable** depuis `build()`.
 </Callout>
