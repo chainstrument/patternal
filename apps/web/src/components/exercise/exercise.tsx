@@ -7,15 +7,21 @@ import type { Exercise, ValidationResult } from '@patternal/pattern-engine'
 interface ExerciseProps {
   exercise: Exercise
   onSuccess?: () => void
+  onStart?: () => void
 }
 
 type Status = 'idle' | 'running' | 'success' | 'error'
 
-export function ExerciseBlock({ exercise, onSuccess }: ExerciseProps) {
+export function ExerciseBlock({ exercise, onSuccess, onStart }: ExerciseProps) {
   const [code, setCode] = useState(exercise.starterCode)
   const [result, setResult] = useState<ValidationResult | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [revealedHints, setRevealedHints] = useState(0)
+
+  function handleCodeChange(value: string) {
+    if (status === 'idle') onStart?.()
+    setCode(value)
+  }
 
   async function handleRun() {
     setStatus('running')
@@ -62,7 +68,7 @@ export function ExerciseBlock({ exercise, onSuccess }: ExerciseProps) {
 
       {/* Éditeur */}
       <div className="px-5">
-        <CodeEditor value={code} onChange={setCode} height="280px" />
+        <CodeEditor value={code} onChange={handleCodeChange} height="280px" />
       </div>
 
       {/* Hints */}
