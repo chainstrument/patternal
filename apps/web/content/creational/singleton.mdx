@@ -1,0 +1,108 @@
+---
+id: singleton
+title: Singleton
+category: creational
+difficulty: beginner
+tags: [instance-unique, état-global]
+realWorld: [Redux Store, Logger, Config Manager, Database Connection]
+related: [factory-method, prototype]
+excerpt: Garantit qu'une classe n'a qu'une seule instance et fournit un point d'accès global à celle-ci.
+---
+
+## Intention
+
+Le Singleton garantit qu'une classe ne possède qu'**une seule instance** et offre un point d'accès global à cette instance. C'est le pattern le plus simple — et aussi le plus mal utilisé.
+
+## Problème résolu
+
+Certaines ressources ne doivent exister qu'en un seul exemplaire dans l'application : une connexion à la base de données, un logger, un store de configuration. Sans Singleton, chaque module pourrait créer sa propre instance, entraînant des incohérences et un gaspillage de ressources.
+
+<UMLDiagram alt="Diagramme UML — Singleton" description="La classe Singleton expose une méthode statique getInstance() qui retourne toujours la même instance." />
+
+## Implémentation TypeScript
+
+<CodeExample filename="singleton.ts" language="typescript" code={`
+class DatabaseConnection {
+  private static instance: DatabaseConnection | null = null
+  private isConnected = false
+
+  private constructor(private readonly url: string) {}
+
+  static getInstance(url: string): DatabaseConnection {
+    if (!DatabaseConnection.instance) {
+      DatabaseConnection.instance = new DatabaseConnection(url)
+    }
+    return DatabaseConnection.instance
+  }
+
+  connect(): void {
+    if (!this.isConnected) {
+      console.log(\`Connexion à \${this.url}\`)
+      this.isConnected = true
+    }
+  }
+
+  query(sql: string): string {
+    if (!this.isConnected) throw new Error('Non connecté')
+    return \`Résultat de : \${sql}\`
+  }
+}
+
+// Usage
+const db1 = DatabaseConnection.getInstance('postgresql://localhost/mydb')
+const db2 = DatabaseConnection.getInstance('postgresql://localhost/mydb')
+
+console.log(db1 === db2) // true — même instance
+db1.connect()
+console.log(db2.query('SELECT * FROM users'))
+`} />
+
+## Variante thread-safe (Node.js)
+
+En Node.js, le module system garantit déjà l'unicité — exporter une instance suffit :
+
+<CodeExample filename="logger.ts" language="typescript" code={`
+class Logger {
+  private logs: string[] = []
+
+  log(message: string): void {
+    const entry = \`[\${new Date().toISOString()}] \${message}\`
+    this.logs.push(entry)
+    console.log(entry)
+  }
+
+  getLogs(): string[] {
+    return [...this.logs]
+  }
+}
+
+// Le module system de Node.js garantit l'unicité
+export const logger = new Logger()
+`} />
+
+<Callout variant="tip" title="Bonne pratique">
+Préférez l'export d'une instance directement (variante Node.js) plutôt que la méthode `getInstance()`. C'est plus idiomatique en TypeScript et évite les ambiguïtés.
+</Callout>
+
+## Exemples dans le monde réel
+
+- **Redux Store** — `createStore()` produit une instance unique partagée par toute l'app React
+- **Prisma Client** — la convention `globalThis.prisma` évite de recréer le client à chaque hot-reload
+- **Winston Logger** — un logger global configuré une fois, utilisé partout
+- **Config Manager** — les variables d'environnement chargées et validées une seule fois au démarrage
+
+## Quand l'utiliser
+
+- Exactement **une** instance de la classe doit exister dans tout le programme
+- Cette instance doit être accessible depuis n'importe où
+- L'instance nécessite une initialisation coûteuse (connexion, lecture de fichier...)
+
+## Pièges courants
+
+<Callout variant="warning" title="Le Singleton cache les dépendances">
+Un Singleton est une dépendance globale implicite. Il rend le code plus difficile à tester (mocking), car les tests partagent la même instance. Préférez l'injection de dépendances quand c'est possible.
+</Callout>
+
+<Callout variant="danger" title="État partagé mutable">
+Un Singleton avec état mutable peut introduire des bugs subtils si plusieurs parties de l'app le modifient simultanément. Limitez les mutations ou rendez l'état immuable.
+</Callout>
