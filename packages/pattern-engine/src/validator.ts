@@ -1,29 +1,35 @@
-import type { Exercise, ValidationResult } from './types'
+import type { Exercise, ValidationResult, AssertionResult } from './types'
 
-export async function validateExercise(
-  exercise: Exercise,
-  userCode: string,
-): Promise<ValidationResult> {
-  const errors: string[] = []
-  let passed = 0
+export function validateExercise(exercise: Exercise, userCode: string): ValidationResult {
+  const results: AssertionResult[] = []
 
   for (const assertion of exercise.assertions) {
     try {
-      const fn = new Function('userCode', `
+      // Exécute le code utilisateur + le test dans un contexte isolé
+      // new Function crée une portée locale : les variables du code utilisateur
+      // ne fuient pas dans le module, et le code du module n'est pas accessible.
+      const fn = new Function(`
+        "use strict";
         ${userCode}
         ${assertion.test}
       `)
-      fn(userCode)
-      passed++
+      fn()
+      results.push({ description: assertion.description, passed: true })
     } catch (err) {
-      errors.push(`${assertion.description}: ${err instanceof Error ? err.message : String(err)}`)
+      results.push({
+        description: assertion.description,
+        passed: false,
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
+
+  const passed = results.filter((r) => r.passed).length
 
   return {
     success: passed === exercise.assertions.length,
     passed,
     total: exercise.assertions.length,
-    errors,
+    results,
   }
 }
